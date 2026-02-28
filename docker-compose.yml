@@ -1,25 +1,19 @@
 services:
-  traefik:
-    image: traefik:v3.3
-    container_name: agrocom-traefik
+  caddy:
+    image: caddy:2
+    container_name: agrocom-caddy
     restart: unless-stopped
-    command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.backendapi.address=:8080"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
     ports:
       - "80:80"
       - "443:443"
       - "8080:8080"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik_data:/letsencrypt
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - ACME_EMAIL=${ACME_EMAIL}
+      - DOMAIN=${DOMAIN}
     networks:
       - agrocom-network
 
@@ -55,12 +49,6 @@ services:
     volumes:
       - backend_images:/app/wwwroot/images
       - backend_files:/app/wwwroot/files
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.backend.entrypoints=backendapi"
-      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
-      - "traefik.http.services.backend.loadbalancer.server.port=8080"
     depends_on:
       mysql:
         condition: service_healthy
@@ -73,17 +61,6 @@ services:
       dockerfile: Dockerfile
     container_name: agrocom-frontend
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.frontend.entrypoints=websecure"
-      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
-      - "traefik.http.services.frontend.loadbalancer.server.port=80"
-      - "traefik.http.routers.frontend-http.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.frontend-http.entrypoints=web"
-      - "traefik.http.routers.frontend-http.middlewares=https-redirect"
-      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.https-redirect.redirectscheme.permanent=true"
     networks:
       - agrocom-network
 
@@ -91,7 +68,8 @@ volumes:
   mysql_data:
   backend_images:
   backend_files:
-  traefik_data:
+  caddy_data:
+  caddy_config:
 
 networks:
   agrocom-network:
