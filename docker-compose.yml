@@ -49,6 +49,7 @@ services:
     volumes:
       - backend_images:/app/wwwroot/images
       - /var/www/files:/app/wwwroot/files
+      - /var/www/files:/var/www/files
     depends_on:
       mysql:
         condition: service_healthy
