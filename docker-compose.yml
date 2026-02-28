@@ -48,7 +48,7 @@ services:
       ASPNETCORE_HTTP_PORTS: "8080"
     volumes:
       - backend_images:/app/wwwroot/images
-      - backend_files:/app/wwwroot/files
+      - /var/www/files:/app/wwwroot/files
     depends_on:
       mysql:
         condition: service_healthy
@@ -67,7 +67,6 @@ services:
 volumes:
   mysql_data:
   backend_images:
-  backend_files:
   caddy_data:
   caddy_config:
 
