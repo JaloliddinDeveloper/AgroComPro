@@ -105,6 +105,30 @@ namespace AggroCom.Controllers
             return Ok(files);
         }
 
+        [HttpGet("{fileName}")]
+        public IActionResult GetFile(string fileName)
+        {
+            var filePath = Path.Combine(this.uploadsFolder, fileName);
+
+            if (!System.IO.File.Exists(filePath))
+                return NotFound();
+
+            var ext = Path.GetExtension(fileName).ToLower();
+
+            var contentType = ext switch
+            {
+                ".png" => "image/png",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".gif" => "image/gif",
+                ".pdf" => "application/pdf",
+                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                _ => "application/octet-stream"
+            };
+
+            return PhysicalFile(filePath, contentType);
+        }
+
         [HttpDelete("{Id}")]
         public async ValueTask<ActionResult<Katalog>> DeleteKatalogByIdAsync(int Id)
         {
