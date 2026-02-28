@@ -2,6 +2,7 @@
 // Copyright (c) The Standard Organization, a coalition of the Good-Hearted Engineers 
 // ----------------------------------------------------------------------------------
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.FileProviders;
 using AggroCom.Brokers.Storages;
 using AggroCom.Services.Foundations.ProductOnes;
 using AggroCom.Services.Foundations.TableOnes;
@@ -60,6 +61,12 @@ public class Program
         var app = builder.Build();
 
         app.UseStaticFiles();
+
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new PhysicalFileProvider("/var/www/files"),
+            RequestPath = "/files"
+        });
 
         if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
         {
