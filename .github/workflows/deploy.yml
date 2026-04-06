@@ -131,6 +131,9 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SERVER_SSH_KEY }}" | base64 -d > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          echo "=== Key format tekshiruvi ==="
+          head -1 ~/.ssh/deploy_key
+          echo "Satrlar soni: $(wc -l < ~/.ssh/deploy_key)"
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: 📤 docker-compose.yml ni serverga yuborish
