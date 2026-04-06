@@ -131,7 +131,7 @@ jobs:
           SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" | tr -d '\r\n' | base64 -d > ~/.ssh/deploy_key
+          echo "$SSH_KEY" | tr -dc 'A-Za-z0-9+/=' | base64 -d > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           echo "Satrlar soni: $(wc -l < ~/.ssh/deploy_key)"
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
