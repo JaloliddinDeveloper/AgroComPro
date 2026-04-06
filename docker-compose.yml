@@ -1,22 +1,4 @@
 services:
-  caddy:
-    image: caddy:2
-    container_name: agrocom-caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "8080:8080"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    environment:
-      - ACME_EMAIL=${ACME_EMAIL}
-      - DOMAIN=${DOMAIN}
-    networks:
-      - agrocom-network
-
   mysql:
     image: mysql:8.0
     container_name: agrocom-mysql
@@ -37,9 +19,7 @@ services:
       retries: 10
 
   backend:
-    build:
-      context: ./AgroComB
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPO}-backend:latest
     container_name: agrocom-backend
     restart: unless-stopped
     environment:
@@ -57,9 +37,7 @@ services:
       - agrocom-network
 
   frontend:
-    build:
-      context: ./AgroComF
-      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPO}-frontend:latest
     container_name: agrocom-frontend
     restart: unless-stopped
     networks:
@@ -67,10 +45,11 @@ services:
 
 volumes:
   mysql_data:
+    name: agrocom_mysqldata
   backend_images:
-  caddy_data:
-  caddy_config:
+    name: agrocom_backend_images
 
 networks:
   agrocom-network:
+    name: agrocom-network
     driver: bridge

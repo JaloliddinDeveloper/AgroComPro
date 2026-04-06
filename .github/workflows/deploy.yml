@@ -1,0 +1,189 @@
+name: Build & Deploy → agrocom.fastergo.uz
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+
+  # ─── Nima o'zgardi? ──────────────────────────────────────────────────────
+  changes:
+    name: 🔍 Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'AgroComB/**'
+            frontend:
+              - 'AgroComF/**'
+
+  # ─── Backend image build ──────────────────────────────────────────────────
+  build-backend:
+    name: 🔨 Build Backend Image
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔡 Lowercase image name
+        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')-backend" >> $GITHUB_ENV
+
+      - name: 🔑 Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Image meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: type=raw,value=latest
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 🐳 Build & Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./AgroComB
+          dockerfile: ./AgroComB/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+  # ─── Frontend image build ─────────────────────────────────────────────────
+  build-frontend:
+    name: 🔨 Build Frontend Image
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔡 Lowercase image name
+        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')-frontend" >> $GITHUB_ENV
+
+      - name: 🔑 Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Image meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: type=raw,value=latest
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 🐳 Build & Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./AgroComF
+          dockerfile: ./AgroComF/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  # ─── Deploy ───────────────────────────────────────────────────────────────
+  deploy:
+    name: 🚀 Deploy → 152.42.242.5
+    runs-on: ubuntu-latest
+    needs: [changes, build-backend, build-frontend]
+    if: ${{ always() && !failure() && !cancelled() }}
+    environment:
+      name: production
+      url: https://agrocom.fastergo.uz
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔡 Lowercase image prefix
+        run: echo "IMAGE_PREFIX=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: 📤 docker-compose.yml ni serverga yuborish
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "/opt/agrocompro/"
+          strip_components: 0
+
+      - name: 🔄 Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/agrocompro
+
+            # .env dagi GITHUB_REPO ni yangilash
+            sed -i "s|GITHUB_REPO=.*|GITHUB_REPO=${{ env.IMAGE_PREFIX }}|" .env
+
+            # GHCR ga login
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io \
+              -u "${{ github.actor }}" --password-stdin
+
+            # MySQL ni ishga tushirish (agar to'xtagan bo'lsa)
+            docker compose up -d mysql
+
+            # Backend yangilash
+            if [ "${{ needs.changes.outputs.backend }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              echo "🔄 Backend yangilanmoqda..."
+              docker pull ghcr.io/${{ env.IMAGE_PREFIX }}-backend:latest
+              docker compose up -d --force-recreate backend
+            fi
+
+            # Frontend yangilash
+            if [ "${{ needs.changes.outputs.frontend }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              echo "🔄 Frontend yangilanmoqda..."
+              docker pull ghcr.io/${{ env.IMAGE_PREFIX }}-frontend:latest
+              docker compose up -d --force-recreate frontend
+            fi
+
+            # AgroERP Caddyni reload qilish (yangi konteynerlar tayyor bo'lgandan keyin)
+            docker exec agroerp_caddy caddy reload --config /etc/caddy/Caddyfile || true
+
+            docker image prune -f
+            echo "✅ Deploy: $(date)"
+
+      - name: 🏥 Health check
+        run: |
+          sleep 20
+          curl -fk --retry 5 --retry-delay 5 https://agrocom.fastergo.uz \
+            && echo "✅ Frontend ishlayapti" \
+            || echo "⚠️ Frontend health check muvaffaqiyatsiz"
+          curl -fk --retry 3 --retry-delay 3 https://agrocomapi.fastergo.uz \
+            && echo "✅ Backend ishlayapti" \
+            || echo "⚠️ Backend health check muvaffaqiyatsiz"
