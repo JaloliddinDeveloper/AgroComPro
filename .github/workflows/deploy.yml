@@ -135,7 +135,7 @@ jobs:
 
       - name: 📤 docker-compose.yml ni serverga yuborish
         run: |
-          scp -i ~/.ssh/deploy_key docker-compose.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/agrocompro/docker-compose.yml
+          scp -i ~/.ssh/deploy_key docker-compose.yml root@${{ secrets.SERVER_HOST }}:/opt/agrocompro/docker-compose.yml
 
       - name: 🔄 Deploy
         env:
@@ -146,7 +146,7 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           ACTOR: ${{ github.actor }}
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} bash -s << EOF
+          ssh -i ~/.ssh/deploy_key root@${{ secrets.SERVER_HOST }} bash -s << EOF
             set -e
             cd /opt/agrocompro
 
