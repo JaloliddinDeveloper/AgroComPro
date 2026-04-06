@@ -6,6 +6,6 @@
     reverse_proxy frontend:80
 }
 
-{$API_DOMAIN} {
+{$DOMAIN}:8080 {
     reverse_proxy backend:8080
 }
